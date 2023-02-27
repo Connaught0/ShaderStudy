@@ -3,6 +3,8 @@ Shader "ShaderStudy/Diffuse"
     Properties
     {
         _Diffuse("Diffuse",Color)=(1,1,1,1)
+             _Specular("Specular",Color)=(1,1,1,1)
+        _Gloss("Gloss",Range(8.0,256))=20
     }
     SubShader
     {
@@ -28,6 +30,7 @@ Shader "ShaderStudy/Diffuse"
             {
                 float3 worldNormal:TEXTCOORD0;
                 float4 pos:SV_POSITION;
+                float3 worldPos:TEXTCOORD1;
                 
             };
 
@@ -38,11 +41,12 @@ Shader "ShaderStudy/Diffuse"
                 v2f o;
 
                 float3 normal=v.normal;
-
-                //v.vertex.xyz+=normal*0.02;//所有顶点沿着法线方向向外走了0.2个位置，所以其变大了0.02
+                
+                v.vertex.xyz+=normal*0.02;//所有顶点沿着法线方向向外走了0.2个位置，所以其变大了0.02
                 
                 o.pos=UnityObjectToClipPos(v.vertex);
 
+                o.worldPos=normalize(mul(unity_ObjectToWorld,v.vertex));
                 
                 //o.pos.x+=0.1;
 
@@ -93,10 +97,12 @@ Shader "ShaderStudy/Diffuse"
             {
                 float3 worldNormal:TEXTCOORD0;
                 float4 pos :SV_POSITION;
+                float3 worldPos:TEXTCOORD1;
             };
 
             float4 _Diffuse;
-
+            fixed4 _Specular;
+            float _Gloss;
             v2f vert(appdata v)
             {
                 v2f o;
@@ -105,7 +111,7 @@ Shader "ShaderStudy/Diffuse"
                  fixed3 worldNormal =normalize(mul(v.normal,(float3x3)unity_WorldToObject));
 
                 o.worldNormal=worldNormal;
-                
+                o.worldPos=mul(unity_ObjectToWorld,v.vertex);
 
                 return o;
             }
@@ -121,22 +127,40 @@ Shader "ShaderStudy/Diffuse"
 
                 float NdotL = 0.5+0.5*dot(i.worldNormal, worldLight);
                 
-	            if (NdotL > 0.9)
+	            if (NdotL > 0.6)
 	            {
 	            	NdotL = 1;
 	            } 
-	            else if (NdotL > 0.5)
+	            else if (NdotL > 0.2)
 	            {
-	            	NdotL = 0.6;
+	            	NdotL = 0.3;
 	            } 
 	            else 
 	            {
-	            	NdotL = 0;
+	            	NdotL = 0.1;
 	            }
                 
-                float3 outputColor=_LightColor0.rgb*_Diffuse.rgb*NdotL;
+                float3 diffuse=_LightColor0.rgb*_Diffuse.rgb*NdotL;
+
                 
-                return fixed4(ambient+outputColor ,1.0);
+                fixed3 reflecrDir=normalize(reflect(-worldLight,i.worldNormal));
+
+                fixed3 viewDir=normalize(_WorldSpaceCameraPos.xyz-i.worldPos.xyz);
+
+                float spec=pow(saturate(dot(reflecrDir,viewDir)),_Gloss);
+
+                if(spec>0.001)
+                {
+                    spec=1;
+                }
+                else
+                {
+                    spec=0;
+                }
+
+                fixed3 specular=_LightColor0.rgb*_Specular.rgb*spec;
+                
+                return fixed4(ambient+diffuse+specular ,1.0);
             }
             
             
